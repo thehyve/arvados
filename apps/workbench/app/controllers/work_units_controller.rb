@@ -114,8 +114,19 @@ class WorkUnitsController < ApplicationController
 
   def show_component
     @object ||= object_for_dataclass resource_class_for_uuid(params['main_obj']), params['main_obj']
+
+    resource_class = resource_class_for_uuid params['wu']
+    obj = object_for_dataclass(resource_class, params['wu'])
+    if resource_class == Job
+      wu = JobWorkUnit.new(obj, params['name'])
+    elsif resource_class == PipelineInstance
+      wu = PipelineInstanceWorkUnit.new(obj, params['name'])
+    elsif resource_class == Container or resource_class == ContainerRequest
+      wu = ContainerWorkUnit.new(obj, params['name'])
+    end
+
     respond_to do |f|
-      f.js { render }
+      f.html { render(partial: "show_component", locals: {wu: wu}) }
     end
   end
 end
