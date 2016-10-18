@@ -15,6 +15,10 @@ class ProxyWorkUnit < WorkUnit
     @lbl
   end
 
+  def proxied
+    @proxied
+  end
+
   def uuid
     get(:uuid)
   end

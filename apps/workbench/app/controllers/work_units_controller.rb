@@ -113,17 +113,22 @@ class WorkUnitsController < ApplicationController
   end
 
   def show_component
-    @object ||= object_for_dataclass resource_class_for_uuid(params['main_obj']), params['main_obj']
+    data = JSON.load(params[:action_data])
 
-    resource_class = resource_class_for_uuid params['wu']
-    obj = object_for_dataclass(resource_class, params['wu'])
-    if resource_class == Job
-      wu = JobWorkUnit.new(obj, params['name'])
-    elsif resource_class == PipelineInstance
-      wu = PipelineInstanceWorkUnit.new(obj, params['name'])
-    elsif resource_class == Container or resource_class == ContainerRequest
-      wu = ContainerWorkUnit.new(obj, params['name'])
+    current_obj = data['current_obj']
+    current_obj_type = data['current_obj_type']
+    if current_obj_type == JobWorkUnit.to_s
+      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#job'
+      wu = JobWorkUnit.new(current_obj, params['name'])
+    elsif current_obj_type == PipelineInstanceWorkUnit.to_s
+      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#pipelineInstance'
+      wu = PipelineInstanceWorkUnit.new(current_obj, params['name'])
+    elsif current_obj_type == ContainerWorkUnit.to_s
+      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#containerRequest'
+      wu = ContainerWorkUnit.new(current_obj, params['name'])
     end
+
+    @object ||= arvados_api_client.unpack_api_response data['main_obj'], data['main_obj_kind']
 
     respond_to do |f|
       f.html { render(partial: "show_component", locals: {wu: wu}) }

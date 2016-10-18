@@ -7,7 +7,8 @@ $(document).
 
       var content_div = href.find('.work-unit-component-detail-body');
       var content_url = href.attr('content-url');
-      $.ajax(content_url, {dataType: 'html'}).
+      var action_data = href.attr('action-data');
+      $.ajax(content_url, {dataType: 'html', type: 'POST', data: {action_data}}).
           done(function(data, status, jqxhr) {
               content_div.html(data);
           }).fail(function(jqxhr, status, error) {
