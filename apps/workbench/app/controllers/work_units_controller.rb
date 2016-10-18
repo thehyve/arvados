@@ -111,4 +111,11 @@ class WorkUnitsController < ApplicationController
       render_error status: 422
     end
   end
+
+  def show_component
+    @object ||= object_for_dataclass resource_class_for_uuid(params['main_obj']), params['main_obj']
+    respond_to do |f|
+      f.js { render }
+    end
+  end
 end
