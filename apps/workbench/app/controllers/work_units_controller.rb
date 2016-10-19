@@ -117,14 +117,16 @@ class WorkUnitsController < ApplicationController
 
     current_obj = data['current_obj']
     current_obj_type = data['current_obj_type']
+    if current_obj['uuid']
+      resource_class = resource_class_for_uuid current_obj['uuid']
+      obj = object_for_dataclass(resource_class, current_obj['uuid'])
+      current_obj = obj if obj
+    end
     if current_obj_type == JobWorkUnit.to_s
-      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#job'
       wu = JobWorkUnit.new(current_obj, params['name'])
     elsif current_obj_type == PipelineInstanceWorkUnit.to_s
-      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#pipelineInstance'
       wu = PipelineInstanceWorkUnit.new(current_obj, params['name'])
     elsif current_obj_type == ContainerWorkUnit.to_s
-      current_obj = arvados_api_client.unpack_api_response current_obj, 'arvados#containerRequest'
       wu = ContainerWorkUnit.new(current_obj, params['name'])
     end
 

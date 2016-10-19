@@ -326,7 +326,7 @@ class ProxyWorkUnit < WorkUnit
     if obj.respond_to? key
       obj.send(key)
     elsif obj.is_a?(Hash)
-      obj[key]
+      obj[key] || obj[key.to_s]
     end
   end
 end
