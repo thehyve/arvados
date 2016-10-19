@@ -112,7 +112,7 @@ class WorkUnitsController < ApplicationController
     end
   end
 
-  def show_component
+  def show_child_component
     data = JSON.load(params[:action_data])
 
     current_obj = data['current_obj']

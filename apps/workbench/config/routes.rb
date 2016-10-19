@@ -16,7 +16,7 @@ ArvadosWorkbench::Application.routes.draw do
   get "all_processes" => 'work_units#index', :as => :all_processes
   get "choose_work_unit_templates" => 'work_unit_templates#choose', :as => :choose_work_unit_templates
   resources :work_units
-  post "work_units_show_component" => 'work_units#show_component', :as => :work_units_show_component
+  post "show_child_component" => 'work_units#show_child_component'
   resources :nodes
   resources :humans
   resources :traits
