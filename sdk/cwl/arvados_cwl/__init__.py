@@ -30,6 +30,7 @@ from .arvworkflow import ArvadosWorkflow, upload_workflow
 from .fsaccess import CollectionFsAccess
 from .perf import Perf
 from .pathmapper import FinalOutputPathMapper
+from ._version import __version__
 
 from cwltool.pack import pack
 from cwltool.process import shortname, UnsupportedRequirement, getListing
@@ -58,7 +59,6 @@ class ArvCwlRunner(object):
         self.uploaded = {}
         self.num_retries = 4
         self.uuid = None
-        self.work_api = work_api
         self.stop_polling = threading.Event()
         self.poll_api = None
         self.pipeline = None
@@ -71,12 +71,20 @@ class ArvCwlRunner(object):
         else:
             self.keep_client = arvados.keep.KeepClient(api_client=self.api, num_retries=self.num_retries)
 
-        if self.work_api is None:
-            # todo: autodetect API to use.
-            self.work_api = "jobs"
-
-        if self.work_api not in ("containers", "jobs"):
-            raise Exception("Unsupported API '%s'" % self.work_api)
+        for api in ["jobs", "containers"]:
+            try:
+                methods = self.api._rootDesc.get('resources')[api]['methods']
+                if ('httpMethod' in methods['create'] and
+                    (work_api == api or work_api is None)):
+                    self.work_api = api
+                    break
+            except KeyError:
+                pass
+        if not self.work_api:
+            if work_api is None:
+                raise Exception("No supported APIs")
+            else:
+                raise Exception("Unsupported API '%s'" % work_api)
 
     def arv_make_tool(self, toolpath_object, **kwargs):
         kwargs["work_api"] = self.work_api
@@ -382,7 +390,7 @@ def versionstring():
     arvpkg = pkg_resources.require("arvados-python-client")
     cwlpkg = pkg_resources.require("cwltool")
 
-    return "%s %s, %s %s, %s %s" % (sys.argv[0], arvcwlpkg[0].version,
+    return "%s %s %s, %s %s, %s %s" % (sys.argv[0], __version__, arvcwlpkg[0].version,
                                     "arvados-python-client", arvpkg[0].version,
                                     "cwltool", cwlpkg[0].version)
 
