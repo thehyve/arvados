@@ -25,7 +25,7 @@ class ArgumentParser(argparse.ArgumentParser):
             '--skip-child-jobs', action='store_true',
             help='Do not include stats from child jobs')
         self.add_argument(
-            '--format', type=str, choices=('html', 'text'), default='text',
+            '--format', type=str, choices=('html', 'text', 'both'), default='text',
             help='Report format')
         self.add_argument(
             '--verbose', '-v', action='count', default=0,
@@ -60,3 +60,5 @@ class Command(object):
             return self.summer.html_report()
         elif self.args.format == 'text':
             return self.summer.text_report()
+        elif self.args.format == 'both':
+            return self.summer.text_report() + '\n\n' + self.summer.html_report();

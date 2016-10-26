@@ -34,8 +34,9 @@ class Task(object):
 
 
 class Summarizer(object):
-    def __init__(self, logdata, label=None, skip_child_jobs=False):
+    def __init__(self, logdata, cv, label=None, skip_child_jobs=False):
         self._logdata = logdata
+        self._cv = cv
 
         self.label = label
         self.starttime = None
@@ -89,7 +90,7 @@ class Summarizer(object):
                                    self.label, uuid)
                     continue
                 logger.debug('%s: follow %s', self.label, uuid)
-                child_summarizer = JobSummarizer(uuid)
+                child_summarizer = JobSummarizer(uuid, self._cv) 
                 child_summarizer.stats_max = self.stats_max
                 child_summarizer.task_stats = self.task_stats
                 child_summarizer.tasks = self.tasks
@@ -114,6 +115,8 @@ class Summarizer(object):
                 elif m.group('category') == 'read':
                     # "stderr crunchstat: read /proc/1234/net/dev: ..."
                     # (crunchstat formatting fixed, but old logs still say this)
+                    continue
+                elif m.group('category') == 'Running':
                     continue
                 task_id = self.seq_to_uuid[int(m.group('seq'))]
                 task = self.tasks[task_id]
@@ -190,6 +193,10 @@ class Summarizer(object):
                         continue
                     self.job_tot[category][stat] += val
         logger.debug('%s: done totals', self.label)
+
+        self._cv.acquire()
+        self._cv.notify()
+        self._cv.release()
 
     def long_label(self):
         label = self.label
@@ -380,7 +387,7 @@ class CollectionSummarizer(Summarizer):
 
 
 class JobSummarizer(Summarizer):
-    def __init__(self, job, **kwargs):
+    def __init__(self, job, cv, **kwargs):
         arv = arvados.api('v1')
         if isinstance(job, basestring):
             self.job = arv.jobs().get(uuid=job).execute()
@@ -398,7 +405,7 @@ class JobSummarizer(Summarizer):
         if rdr is None:
             rdr = crunchstat_summary.reader.LiveLogReader(self.job['uuid'])
             label = self.job['uuid'] + ' (partial)'
-        super(JobSummarizer, self).__init__(rdr, **kwargs)
+        super(JobSummarizer, self).__init__(rdr, cv, **kwargs)
         self.label = label
         self.existing_constraints = self.job.get('runtime_constraints', {})
 
@@ -406,31 +413,63 @@ class JobSummarizer(Summarizer):
 class PipelineSummarizer(object):
     def __init__(self, pipeline_instance_uuid, **kwargs):
         arv = arvados.api('v1', model=OrderedJsonModel())
-        instance = arv.pipeline_instances().get(
+        self.instance = arv.pipeline_instances().get(
             uuid=pipeline_instance_uuid).execute()
         self.summarizers = collections.OrderedDict()
-        for cname, component in instance['components'].iteritems():
-            if 'job' not in component:
-                logger.warning(
-                    "%s: skipping component with no job assigned", cname)
-            else:
-                logger.info(
-                    "%s: job %s", cname, component['job']['uuid'])
-                summarizer = JobSummarizer(component['job'], **kwargs)
-                summarizer.label = '{} {}'.format(
-                    cname, component['job']['uuid'])
-                self.summarizers[cname] = summarizer
+        logger.info("%d total components" % len(self.instance['components']))
         self.label = pipeline_instance_uuid
+        self._kwargs = kwargs
+        self.cv = threading.Condition()
 
-    def run(self):
-        threads = []
-        for summarizer in self.summarizers.itervalues():
+    def start_thread(self, comps):
+        cname, component = comps.next()
+        if 'job' not in component:
+            logger.warning(
+                "%s: skipping component with no job assigned", cname)
+        else:
+            logger.info(
+                "%s: job %s", cname, component['job']['uuid'])
+            summarizer = JobSummarizer(component['job'], self.cv, **self._kwargs)
+            summarizer.label = '{} {}'.format(
+                cname, component['job']['uuid'])
+            self.summarizers[cname]=summarizer
             t = threading.Thread(target=summarizer.run)
             t.daemon = True
             t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+            return t
+    
+    def run(self):
+        threads = []
+
+        comp_iterator = self.instance['components'].iteritems()
+        empty = False
+        for i in range(10):
+            try:
+                threads.append(self.start_thread(comp_iterator))
+            except StopIteration:
+                empty = True
+                break
+        logger.info("started initial threads")
+
+        while len(threads) > 0:
+            self.cv.acquire()
+            self.cv.wait(20)
+            logger.info("%d threads active" % len(threads))
+            for t in threads:
+                if not t.is_alive():
+                    t.join()
+                    threads.remove(t)
+                    if not empty:
+                        try:
+                            threads.append(self.start_thread(comp_iterator))
+                            i += 1
+                            logger.info("started followup thread %d" % i)
+                        except StopIteration:
+                            logger.info("No more threads to start")
+                            empty = True
+                            self.cv.release()
+                    break
+
 
     def text_report(self):
         txt = ''
