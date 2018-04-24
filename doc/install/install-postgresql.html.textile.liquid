@@ -30,7 +30,7 @@ h3(#centos7). CentOS 7
 # Initialize the database:
   <notextile><pre>~$ <span class="userinput">sudo postgresql-setup initdb</span></pre></notextile>
 # Configure the database to accept password connections:
-  <notextile><pre><code>~$ <span class="userinput">sudo sed -ri -e 's/^(host +all +all +(127\.0\.0\.1\/32|::1\/128) +)ident$/\1md5/' /var/lib/pgsql/data/pg_hba.conf</span></code></pre></notextile>
+  <notextile><pre><code>~$ <span class="userinput">sudo sed -ri -e 's/^(host +all +all +(127\.0\.0\.1\/32|::1\/128) +)ident$/\1md5/' /var/opt/rh/rh-postgresql95/lib/pgsql/data/pg_hba.conf</span></code></pre></notextile>
 # Configure the database to launch at boot:
   <notextile><pre>~$ <span class="userinput">sudo systemctl enable rh-postgresql95-postgresql</span></pre></notextile>
 # Start the database:
